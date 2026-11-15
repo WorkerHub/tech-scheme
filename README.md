@@ -7,7 +7,8 @@
 | 文件 | 是什么 | 落点 |
 |---|---|---|
 | `tech-scheme/SKILL.md` | Skill 入口：适用范围、红线摘要与章节索引 | 团队 Skills 库，关联本仓库后自动更新 |
-| `tech-scheme/references/tech-scheme.md` | 方案全文（§1–§12 与版本历史） | 随 Skill 按需读取 |
+| `tech-scheme/references/tech-scheme.md` | 方案全文（§1–§12） | 随 Skill 按需读取 |
+| `CHANGELOG.md` | 方案内容变更记录 | 仓库根目录 |
 
 ## 修改与发布流程
 
