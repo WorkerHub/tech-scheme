@@ -53,7 +53,7 @@
       └─ 外部扇出（如需：SMTP / Telegram / 企业微信 / Webhook 等）
   → D1（组织共享的唯一一个库，按 TABLE_PREFIX 隔离）
   → KV / Durable Objects / R2：按需才开，不是默认件
-         （KV 做 dedupe/缓存；DO 做 lx 那种强一致注册表；R2 做背景图/图标上传）
+         （KV 做 dedupe/缓存；DO 做强一致注册表；R2 做背景图/图标上传）
 GitHub（WorkerHub 组织）— 合并 main → GitHub Actions → wrangler deploy → Cloudflare
 Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Daniel/Mary 实现，Tony 评审，Jim 验证；合并/部署关口归用户
 ```
@@ -105,12 +105,12 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 
 ## 3B. 主题切换：亮 / 暗 / 自动三档
 
-- 每个项目都必须支持**手动切换主题**，共三档：**亮（light）/ 暗（dark）/ 自动（auto）**，交互形态参考 lx-music-server 管理面板的主题切换；
+- 每个项目都必须支持**手动切换主题**，共三档：**亮（light）/ 暗（dark）/ 自动（auto）**，交互形态参考 §3C 参考实现的主题切换控件；
 - **自动** = 跟随操作系统 `prefers-color-scheme`，且系统主题变化时页面**实时跟随**、不需要刷新；
 - 默认值为**自动**；用户的手动选择要持久化（未登录时存浏览器本地，登录后同步进用户个人偏好，见 §5A.3「设置」），下次打开直接生效；
 - 防闪烁：主题必须在首屏绘制前就确定并应用（读已存偏好、用 `dark` class + CSS 变量切换整套 token，沿 §3 的 shadcn/ui 变量体系），不许先亮一下再变暗，也不许逐组件写两套样式；
 - 适用范围是全站，含登录页、初始化页、「关于」页（未登录可见页面同样要跟随用户已选主题）。
-- 实现参考：除 lx-music-server 外，可对照 shadcn-admin 的 ThemeProvider（见 §3C）——`light | dark | system` 三档、默认 system、监听系统变化实时切换，与本节口径一致。
+- 实现参考：对照 shadcn-admin 的 ThemeProvider（见 §3C）——`light | dark | system` 三档、默认 system、监听系统变化实时切换，与本节口径一致。
 
 ## 3C. 后台参考实现：shadcn-admin
 
@@ -282,9 +282,9 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 1. **失败关闭：** 生成 secrets.json 前逐键校验非空，缺任何一个立即中止部署并点名报错，绝不用空值覆盖 Cloudflare 现有 Secret；
 2. **值不变原则：** 已上线项目首次 CI 化必须用与线上**相同的值**（用户本人填入 GitHub）；拿不出同值时，只对可轮换键逐键轮换（JWT 轮换 = 全员重登；SETUP 类影响可忽略；API Token 新建同权限后撤旧）；
 3. **加密钥可进 CI、但永不许新值顶替：** `ENCRYPTION_KEY` / `TOTP_ENCRYPTION_KEY` 这类 AES-GCM 钥可以与其它键同路进 CI（GitHub Secrets + secrets-file 上传），前提是**值已妥善备份/存储**：密码管理器留底一份 + GitHub Secret 一份，只放在不可回读处等于没有备份（Cloudflare 控制台与 GitHub Secret 都是创建后不可回读）。铁律不变的是**值不变**：一旦换新值，库中密文（TOTP 凭据、保存的密钥配置）全部解不开；拿不出原值的存量钥事实上无值可填、保持 Cloudflare 现有 Secret 不动（`--secrets-file` 未包含的键不会被覆盖），要纳入只能连同轮换与存量密文处置单独拍板。新建项目的加密钥从生成第一天起就留底并进 CI；
-4. secrets.json 只许落在 `$RUNNER_TEMP`，不得落仓库工作区靠 .gitignore 兜底（lx 的旧做法要改）；任何步骤不得打印/回显/上传含密钥的 artifact；
-5. 资源 ID 不是密钥：如 lx 的 `KV_NAMESPACE_ID` 应放 Variables，不放 Secrets；
-6. **语义例外要显式写进规格，不许套通用校验：** 「一次性播种源」（lx 的 `LX_USERS`，首次导入后以 DO 注册表为准）和「空 = 功能关闭」（lx 的 `LX_ADMIN_PASSWORD_HASH`）两类键不适用非空校验，改为有值才写入、为空整键省略。
+4. secrets.json 只许落在 `$RUNNER_TEMP`，不得落仓库工作区靠 .gitignore 兜底；任何步骤不得打印/回显/上传含密钥的 artifact；
+5. 资源 ID 不是密钥：放 Variables 还是 Secrets 不按是否敏感判断，按红线 7 的日志掩码定案执行；个别存量项目的不同放法属现状，不作新项目样板；
+6. **语义例外要显式写进规格，不许套通用校验：** 「一次性播种源」（如用户注册表播种键，首次导入后以 DO 注册表为准）和「空 = 功能关闭」（如管理员密码哈希键）两类键不适用非空校验，改为有值才写入、为空整键省略。
 7. **资源 ID 一律存 GitHub Secrets、不得以明文进公开日志：** 资源 ID 不是密钥，但 wrangler 的自身输出（`d1 execute` 横幅、`deploy` 的 Bindings 摘要）会把 `D1_DATABASE_ID`、`KV_NAMESPACE_ID`、`CLOUDFLARE_ACCOUNT_ID` 明文打进 GitHub Actions 日志，舰队仓库均为公开仓库、日志任何人可见。定案做法：三个 ID 改存 Secrets（组织级 `CLOUDFLARE_ACCOUNT_ID`/`D1_DATABASE_ID`、仓库级 `KV_NAMESPACE_ID`，见 §4.1），deploy 里经 `secrets.` 引用——Secrets 的值在 job 开始前即预注册为掩码，全部步骤（含第一个引用它的步骤）的 env 区与输出均自动打码。原 add-mask 方案有结构性残余（携带值的第一步 env 区在掩码注册前已被 runner 打进日志；属 GitHub runner 已知时序问题，actions/runner#475 五年未修），已实证并弃用，新仓库不得再用 add-mask 承担 ID 掩码。`D1_DATABASE_NAME` 不在此列（非敏感、保持 Variable 明文，掩了毁日志可读性）。历史日志不回溯。迁移规格另册存档。
 
 **邮件发送通道：** 标准实现同时支持 SMTP 与 Resend 两种通道，部署时由用户二选一启用；两通道共用同一发送接口，切换不改业务代码。凭据（SMTP 密码 / Resend API Key）按仓库级 Secrets 存放，通道选择与非密参数放 Variables 或系统管理面（§5A.4）。
@@ -356,7 +356,7 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 
 ## 12. README 与截图规范
 
-- **存放位置：** README 截图统一存仓库内 `.github/assets/imgs/`，README 用相对路径引用。理由：随仓库走，Fork/镜像/备份/离线 clone 都能显示，不依赖外部图床、不会死链；`.github/` 不进构建产物、不被 Wrangler 部署，不占 Worker 体积。hub 做项目卡片时直接复用同一文件（raw/jsDelivr），不另存一份。
+- **存放位置：** README 截图统一存仓库内 `.github/assets/imgs/`，README 用相对路径引用。理由：随仓库走，Fork/镜像/备份/离线 clone 都能显示，不依赖外部图床、不会死链；`.github/` 不进构建产物、不被 Wrangler 部署，不占 Worker 体积。组织门户做项目卡片时直接复用同一文件（raw/jsDelivr），不另存一份。
 - **禁止：** 外部图床（Imgur、自建 R2 图床等）作主存；GitHub `user-attachments` 随机链接（不可整理/替换、迁出即丢，只许临时贴图）；把截图放 `public/`、`src/assets/` 等构建目录；未压缩原图直入仓库；Git LFS。
 - **格式与体积：** WebP 为主（质量约 80，文字清晰度受损才用 PNG 并说明）；文件宽度 ≤1600px，桌面采集视口 1440×900、移动端 390×844，README 展示宽 800–900；单张 ≤300KB、单仓总计 ≤2MB。
 - **命名：** kebab-case 语义名（`home.webp`、`dashboard.webp`、`settings.webp`、`mobile-home.webp`、`dark-home.webp`、核心功能页 `feature-<功能名>.webp`），不用日期或系统默认截屏名。
@@ -372,3 +372,4 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 - 发布版 1.0（2026-11-08）：由内部提炼稿整理发布；章节编号与提炼稿一致。
 - 2026-11-15 修订：§3A 删除原文引用、只写规范；§4.2 同库现状去具体化（不写前缀、表数与项目名）；§5B 只保留规范与要求、删除具体问题叙述；§9 改为工具中立的协作流程；§11 新增默认带 `.github/renovate.json`。
 - 2026-11-15 修订二：邮件发送定版为 SMTP 与 Resend 双通道二选一（§3/§5A.4/§7/§11）；全文清除以具体项目为样板/参照的描述，改为自含规范；§11 新增从 `project-template` 起步建仓。
+- 2026-11-15 修订三：清除正文其余以具体项目为例的举例（§2/§3B/§7/§12），改为自含表述；§10 例外清单属登记性质，不在此列。
