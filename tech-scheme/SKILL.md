@@ -23,6 +23,7 @@ description: WorkerHub 通用技术方案：WorkerHub 组织项目的技术栈�
 
 ## 其他定版口径
 
+- **数据库升级随部署自动完成**：迁移命名 `schema_vN` 顺序编号（§4.4）；deploy.yml 在部署后经 workers.dev 子域调 `POST /api/setup` 自动升级、断言迁移名在场、失败 Deploy 变红（§9 第 4 条）；管理面不提供手动升级入口（§5A.4、§5A.6）。
 - **邮件发送**：标准实现同时支持 SMTP 与 Resend 两种通道，部署时由用户二选一，凭据按 §7 分层存放。
 - **新项目基版**：新项目从组织模板仓库 `project-template` 起步（薄骨架，基础设施条款已内建），不从空仓自搭。
 
