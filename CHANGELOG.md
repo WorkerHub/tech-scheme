@@ -2,6 +2,10 @@
 
 本文件记录《WorkerHub 通用技术方案》的内容变更，最新在上。
 
+## 1.3.0（2026-11-22）
+
+- 定时任务调度改版（§8、§11 与 SKILL 摘要同步）：由「waker 双模式、triggers 配置保留、删 key 自动回 Cron」改为三态物化——仓库提交的 wrangler `crons` 恒为 `[]`、不占官方槽位，项目 cron 表达式声明在仓库 Variable `CRON_SCHEDULE`（逗号分隔、可多条、UTC），部署脚本（`scripts/materialize-secrets.mjs`）在部署前按 `WAKER_SIGNING_KEY` 三态物化进 wrangler.toml：未配置 → 写入表达式走官方 Cron（默认路径，按槽位够用假设）、真值 → waker 接管、`false` → 无调度且不回落 Cron。改调度形态只改 Secret / Variable 后重新部署。
+
 ## 1.2.1（2026-11-20）
 
 - 微修：删去 §5A.6 第 4 条的悬空引用「密钥端点与管理面端点形状一致」——管理面升级端点已于 1.2.0 撤除，该半句无所指。

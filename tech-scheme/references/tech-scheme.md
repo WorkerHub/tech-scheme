@@ -309,7 +309,7 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 ## 8. 业务共性模式（按需取用，不强塞）
 
 - **定时任务：** Wrangler Cron 触发（如每 5 分钟扫一次到期任务）；防重复优先用 **D1 状态抢占**——`UPDATE ... SET status='sending' WHERE id=? AND status='scheduled'`，影响行数为 1 才执行。存量项目已有的 KV dedupe 模式保留不强改，但注意其教训：解析/配置失败时**不写 dedupe 键**，修好配置后同一窗口还能补发。
-- **定时任务接 waker 的双模式：** 唯一开关是 **`WAKER_SIGNING_KEY` 配没配**，不设任何模式变量——**严禁另设 `WAKER_MODE` 之类变量**，一个开关只认一处。未配 → 默认走 Cloudflare Cron Trigger，开箱即用、零 waker 依赖，waker 回调口 fail closed（回未配置响应、不执行）；配了（GitHub Secret → secrets-file 注入）→ waker 接管：waker 按计划发 HMAC 签名回调、项目侧验签后执行，原生 Cron 的处理函数检测到 key 存在即跳过让路（wrangler 的 triggers 配置保留）；删 key 并重新部署即自动回到 Cron。静态周期任务**只配 signing key 一把、不用项目令牌**（项目令牌仅项目需动态调用 waker 注册/管理 API 时才配，如需动态自续调度的项目）。模式互斥之外仍按上一条做 D1 状态/日志幂等兜底，防配置切换过渡期双跑。
+- **定时任务的调度形态（waker / 官方 Cron / 无调度）：** 只认 **`WAKER_SIGNING_KEY`** 的三态，不设任何模式变量——**严禁另设 `WAKER_MODE` 之类变量**，一个开关只认一处。仓库提交的 `wrangler.toml` 里 `[triggers] crons` **恒为 `[]`**、不提交任何表达式、不占官方槽位；项目把自己的 cron 表达式声明在仓库 Variable **`CRON_SCHEDULE`**（逗号分隔、可多条、按 UTC），由部署脚本（`scripts/materialize-secrets.mjs`，与 TABLE_PREFIX 同路）在部署前按三态物化进 wrangler.toml 再部署：**未配置**（缺失 / 空 / 占位值）→ 把 `CRON_SCHEDULE` 写进 `crons`，走 Cloudflare 官方 Cron Trigger（默认路径，按槽位够用假设；未声明 `CRON_SCHEDULE` 则 `crons` 保持 `[]`、无调度），waker 回调口 fail closed（回未配置响应、不执行）；**配了真值**（GitHub Secret → secrets-file 注入）→ waker 接管：waker 按计划发 HMAC 签名回调、项目侧验签后执行，`crons` 保持 `[]`，原生 Cron 的处理函数检测到 key 存在即跳过让路（双保险）；**保留值 `false`** → 没有任何调度：`crons` 保持 `[]`，waker 回调口同样 fail closed，`scheduled()` 被触发也跳过且**不回落** Cron。改调度形态只改 Secret / Variable 后重新部署，不改代码、不动 wrangler.toml 的提交内容。静态周期任务**只配 signing key 一把、不用项目令牌**（项目令牌仅项目需动态调用 waker 注册/管理 API 时才配，如需动态自续调度的项目）。模式互斥之外仍按上一条做 D1 状态/日志幂等兜底，防配置切换过渡期双跑。
 - **发送/扇出类：** 解析逻辑只实现一处；「未选」的语义必须显式定义且**失败关闭**——定版口径为：选了按选的发（可多选），没选只发用户预设的**唯一默认渠道**，未设默认则报错不发，绝不退回「全量扇出」。新项目凡有「默认/兜底」语义，照此办理：无默认 = 报错，不许静默全量。
 - **终态不变式校验：** 配置类写入按「落库后终态」校验而非单字段校验（如默认渠道必须在最终的已启用集合内，不满足整单不写），保证原子性。
 - **迁移写法：** 命名按 §4.4（`schema_vN` 顺序编号）；schema 两处（`schema.sql` 与 setup 内嵌定义）必须逐字同步；存量加列走 `PRAGMA table_info` 查缺 + `ALTER TABLE` + try/catch 只记日志；清理/退役类迁移要连带清理关联字段，且幂等可重跑。
@@ -367,7 +367,7 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 - [ ] `.github/workflows/` 带发版对子 `tag.yml` + `release.yml`（§9.1）：手动 dispatch 输语义版本打 tag、tag 推送触发自动建 Release；仓库级 Secret `PAT_TOKEN` 已由用户配好（不用默认 GITHUB_TOKEN 推 tag）
 - [ ] `.github/renovate.json` 默认带上：依赖更新由 Renovate 托管，配置照现行样板、不逐项目自创
 - [ ] README 按 §12 带「界面预览」：截图存 `.github/assets/imgs/`、WebP、相对路径引用、无真实数据入图
-- [ ] 有定时任务且拟接 waker 时按 §8 双模式：唯一开关 `WAKER_SIGNING_KEY`（未配默认 Cron、配了 waker 接管）、不设模式变量；静态任务只配 signing key、不配项目令牌
+- [ ] 有定时任务时按 §8 三态接调度：仓库 wrangler 的 `crons` 恒为 `[]`、表达式声明在仓库 Variable `CRON_SCHEDULE`，部署脚本按 `WAKER_SIGNING_KEY` 三态物化（未配 → 官方 Cron、真值 → waker、`false` → 无调度）、不设模式变量；静态任务只配 signing key、不配项目令牌
 
 ## 12. README 与截图规范
 
