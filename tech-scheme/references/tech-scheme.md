@@ -366,6 +366,7 @@ Multica（Oneboy 工作区）— Muse 写规格/派单，Mike 拆单调度，Dan
 - [ ] 部署关口、验收命令（typecheck/build/test）写进父单；deploy.yml 带部署后自动升级步（§9 第 4 条）、`SETUP_SECRET` 真值已核
 - [ ] `.github/workflows/` 带发版对子 `tag.yml` + `release.yml`（§9.1）：手动 dispatch 输语义版本打 tag、tag 推送触发自动建 Release；仓库级 Secret `PAT_TOKEN` 已由用户配好（不用默认 GITHUB_TOKEN 推 tag）
 - [ ] `.github/renovate.json` 默认带上：依赖更新由 Renovate 托管，配置照现行样板、不逐项目自创
+- [ ] 建仓后为默认分支 `main` 配置 GitHub 规则集：要求经 PR 合并（Required approvals 保持 0）、必过状态检查 `Validate`（GitHub Actions）、不勾「Require branches to be up to date」、Bypass 名单留空（管理员亦不可绕过；紧急出口是改规则本身，不是绕过规则）；合并前分支 CI 全绿由此成为平台机制，而非仅靠纪律（2026-11-26 于模板仓实证：非绿时合并被拦、绿后正常合并）
 - [ ] README 按 §12 带「界面预览」：截图存 `.github/assets/imgs/`、WebP、相对路径引用、无真实数据入图
 - [ ] 有定时任务时按 §8 三态接调度：仓库 wrangler 的 `crons` 恒为 `[]`、表达式声明在仓库 Variable `CRON_SCHEDULE`，部署脚本按 `WAKER_SIGNING_KEY` 三态物化（未配 → 官方 Cron、真值 → waker、`false` → 无调度）、不设模式变量；静态任务只配 signing key、不配项目令牌
 
